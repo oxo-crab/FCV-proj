@@ -8,6 +8,7 @@ import numpy as np
 import os
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
+from scipy.ndimage import uniform_filter
 
 class ImageFilterApp:
     def __init__(self, root):
@@ -44,6 +45,7 @@ class ImageFilterApp:
             "Guided Filter",
             "Rolling Guidance Filter",
             "Kuwahara Filter",
+            "Kuwahara Filter (Entropy-based)",
             "Portrait - Standard Blur",
             "Portrait - Artistic Style"
         ]
@@ -57,6 +59,31 @@ class ImageFilterApp:
         btn_apply = tk.Button(control_frame, text="Apply Filter", command=self.apply_filter)
         btn_apply.pack(side=tk.LEFT, padx=10)
 
+        # --- Noise Controls ---
+        self.noise_options = ["None", "Gaussian", "Salt & Pepper", "Both"]
+        self.selected_noise = tk.StringVar(value=self.noise_options[0])
+        noise_menu = ttk.Combobox(control_frame, textvariable=self.selected_noise, values=self.noise_options, state="readonly", width=18)
+        noise_menu.pack(side=tk.LEFT, padx=10)
+
+        tk.Label(control_frame, text="Gauss sigma:").pack(side=tk.LEFT)
+        self.gauss_sigma_var = tk.DoubleVar(value=25.0)
+        gauss_entry = tk.Entry(control_frame, textvariable=self.gauss_sigma_var, width=6)
+        gauss_entry.pack(side=tk.LEFT, padx=(2, 8))
+
+        tk.Label(control_frame, text="SP amount:").pack(side=tk.LEFT)
+        self.sp_amount_var = tk.DoubleVar(value=0.02)
+        sp_entry = tk.Entry(control_frame, textvariable=self.sp_amount_var, width=6)
+        sp_entry.pack(side=tk.LEFT, padx=(2, 8))
+
+        btn_add_noise = tk.Button(control_frame, text="Add Noise", command=self.add_noise)
+        btn_add_noise.pack(side=tk.LEFT, padx=6)
+
+        btn_save_noisy = tk.Button(control_frame, text="Save Noisy", command=self.save_noisy)
+        btn_save_noisy.pack(side=tk.LEFT, padx=6)
+
+        btn_save_processed = tk.Button(control_frame, text="Save Processed", command=self.save_processed)
+        btn_save_processed.pack(side=tk.LEFT, padx=6)
+
         # --- Metrics Display ---
         metrics_frame = tk.Frame(control_frame)
         metrics_frame.pack(side=tk.LEFT, padx=20)
@@ -66,6 +93,12 @@ class ImageFilterApp:
         
         self.ssim_label = tk.Label(metrics_frame, text="SSIM: --", font=("Arial", 10))
         self.ssim_label.pack(side=tk.TOP)
+        
+        # Additional labels to show noisy metrics
+        self.psnr_noisy_label = tk.Label(metrics_frame, text="PSNR (noisy): --", font=("Arial", 9))
+        self.psnr_noisy_label.pack(side=tk.TOP)
+        self.ssim_noisy_label = tk.Label(metrics_frame, text="SSIM (noisy): --", font=("Arial", 9))
+        self.ssim_noisy_label.pack(side=tk.TOP)
     
     # --- NEW --- This function is called when a new filter is selected from the dropdown
     def on_filter_change(self, event=None):
@@ -94,6 +127,10 @@ class ImageFilterApp:
         self.original_image = cv2.imread(self.image_path)
         self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
         print("Image loaded and converted to RGB successfully.")
+
+        # Reset noisy and processed
+        self.noisy_image = None
+        self.processed_image = None
 
         self.root.after(100, lambda: self.display_image(self.original_image, self.canvas_original))
         self.canvas_processed.delete("all")
@@ -130,16 +167,21 @@ class ImageFilterApp:
         choice = self.selected_filter.get()
         print(f"\nApplying filter: '{choice}'...")
 
+        # decide source image (noisy if present)
+        source = self.noisy_image if self.noisy_image is not None else self.original_image
+
         if choice == "Guided Filter":
-            self.processed_image = self._guided_filter(self.original_image)
+            self.processed_image = self._guided_filter(source)
         elif choice == "Rolling Guidance Filter":
-            self.processed_image = self._rolling_guidance_filter(self.original_image)
+            self.processed_image = self._rolling_guidance_filter(source)
         elif choice == "Kuwahara Filter":
-            self.processed_image = self._kuwahara_filter_vectorized(self.original_image)
+            self.processed_image = self._kuwahara_filter_vectorized(source)
+        elif choice == "Kuwahara Filter (Entropy-based)":
+            self.processed_image = self._kuwahara_entropy_filter(source)
         elif choice == "Portrait - Standard Blur":
-            self.processed_image = self._create_portrait_effect(self.original_image, lambda img: cv2.GaussianBlur(img, (21, 21), 0))
+            self.processed_image = self._create_portrait_effect(source, lambda img: cv2.GaussianBlur(img, (21, 21), 0))
         elif choice == "Portrait - Artistic Style":
-            self.processed_image = self._create_portrait_effect(self.original_image, self._kuwahara_filter_vectorized)
+            self.processed_image = self._create_portrait_effect(source, self._kuwahara_filter_vectorized)
 
         if self.processed_image is not None:
             print(f"'{choice}' filter applied successfully. Displaying result.")
@@ -150,7 +192,29 @@ class ImageFilterApp:
 
     def _calculate_and_display_metrics(self):
         """Calculates PSNR and SSIM and updates the GUI labels."""
-        if self.original_image is None or self.processed_image is None:
+        # if no image loaded
+        if self.original_image is None:
+            return
+
+        # show noisy metrics if noisy image exists
+        if self.noisy_image is not None:
+            try:
+                noisy_resized = cv2.resize(self.noisy_image, (self.original_image.shape[1], self.original_image.shape[0]))
+                psnr_noisy = psnr(self.original_image, noisy_resized, data_range=255)
+                try:
+                    ssim_noisy = ssim(self.original_image, noisy_resized, data_range=255, channel_axis=2)
+                except TypeError:
+                    ssim_noisy = ssim(self.original_image, noisy_resized, data_range=255, multichannel=True)
+                self.psnr_noisy_label.config(text=f"PSNR (noisy): {psnr_noisy:.2f} dB")
+                self.ssim_noisy_label.config(text=f"SSIM (noisy): {ssim_noisy:.4f}")
+            except Exception:
+                self.psnr_noisy_label.config(text="PSNR (noisy): --")
+                self.ssim_noisy_label.config(text="SSIM (noisy): --")
+        else:
+            self.psnr_noisy_label.config(text="PSNR (noisy): --")
+            self.ssim_noisy_label.config(text="SSIM (noisy): --")
+
+        if self.processed_image is None:
             self.psnr_label.config(text="PSNR: --")
             self.ssim_label.config(text="SSIM: --")
             return
@@ -159,13 +223,96 @@ class ImageFilterApp:
         processed_resized = cv2.resize(self.processed_image, (w, h))
 
         psnr_value = psnr(self.original_image, processed_resized, data_range=255)
-        ssim_value = ssim(self.original_image, processed_resized, multichannel=True, data_range=255, channel_axis=2)
+        try:
+            ssim_value = ssim(self.original_image, processed_resized, data_range=255, channel_axis=2)
+        except TypeError:
+            ssim_value = ssim(self.original_image, processed_resized, data_range=255, multichannel=True)
 
         self.psnr_label.config(text=f"PSNR: {psnr_value:.2f} dB")
         self.ssim_label.config(text=f"SSIM: {ssim_value:.4f}")
         print(f"Metrics Calculated -> PSNR: {psnr_value:.2f} dB, SSIM: {ssim_value:.4f}")
 
+        # Also print improvement over noisy (if noisy exists)
+        if self.noisy_image is not None:
+            try:
+                noisy_resized = cv2.resize(self.noisy_image, (w, h))
+                psnr_noisy = psnr(self.original_image, noisy_resized, data_range=255)
+                print(f"Improvement vs noisy -> PSNR delta: {psnr_value - psnr_noisy:+.2f} dB")
+            except Exception:
+                pass
+
     # --- Filter Implementations ---
+
+    def _local_entropy(self, image, window_size=5, bins=64):
+        """Compute local entropy map using histogram-based approximation."""
+        # Quantize to bins
+        quantized = np.floor(image * (bins - 1)).astype(np.int32)
+        h, w = image.shape
+        entropy_map = np.zeros_like(image)
+
+        # Build binary masks for each bin and smooth them to estimate p(i)
+        for b in range(bins):
+            mask = (quantized == b).astype(np.float32)
+            p = uniform_filter(mask, size=window_size)
+            nonzero = p > 0
+            entropy_map[nonzero] -= p[nonzero] * np.log2(p[nonzero])
+
+        return entropy_map
+
+    def _kuwahara_entropy_single_channel(self, image, window_size=5, bins=64):
+        """Entropy-based Kuwahara filter for single channel."""
+        pad = window_size // 2
+        h, w = image.shape
+
+        # Compute quadrant means (using uniform filters on subregions)
+        mean_tl = uniform_filter(image, window_size)[pad:, pad:]  # top-left
+        mean_tr = uniform_filter(image[:, ::-1], window_size)[pad:, pad:][:, ::-1]  # top-right
+        mean_bl = uniform_filter(image[::-1, :], window_size)[pad:, pad:][::-1, :]  # bottom-left
+        mean_br = uniform_filter(image[::-1, ::-1], window_size)[pad:, pad:][::-1, ::-1]  # bottom-right
+
+        # Resize to match original
+        mean_tl, mean_tr, mean_bl, mean_br = [
+            m[:h, :w] for m in (mean_tl, mean_tr, mean_bl, mean_br)
+        ]
+
+        # Compute entropy maps for same quadrants
+        ent_tl = self._local_entropy(image, window_size, bins)[pad:, pad:]
+        ent_tr = self._local_entropy(image[:, ::-1], window_size, bins)[pad:, pad:][:, ::-1]
+        ent_bl = self._local_entropy(image[::-1, :], window_size, bins)[pad:, pad:][::-1, :]
+        ent_br = self._local_entropy(image[::-1, ::-1], window_size, bins)[pad:, pad:][::-1, ::-1]
+
+        ent_tl, ent_tr, ent_bl, ent_br = [
+            e[:h, :w] for e in (ent_tl, ent_tr, ent_bl, ent_br)
+        ]
+
+        # Stack and select best quadrant
+        entropies = np.stack([ent_tl, ent_tr, ent_bl, ent_br], axis=-1)
+        means = np.stack([mean_tl, mean_tr, mean_bl, mean_br], axis=-1)
+
+        best_idx = np.argmin(entropies, axis=-1)
+        output = np.take_along_axis(means, best_idx[..., None], axis=-1).squeeze(-1)
+
+        return output
+
+    def _kuwahara_entropy_filter(self, image, window_size=5):
+        """Apply entropy-based Kuwahara filter to RGB image."""
+        # Convert to float for processing
+        img_float = image.astype(np.float32) / 255.0
+        
+        if img_float.ndim == 2:
+            # Grayscale
+            result = self._kuwahara_entropy_single_channel(img_float, window_size)
+        else:
+            # Process per channel
+            result = np.stack(
+                [self._kuwahara_entropy_single_channel(img_float[..., c], window_size) 
+                 for c in range(img_float.shape[2])],
+                axis=-1
+            )
+        
+        # Convert back to uint8
+        result = np.clip(result * 255, 0, 255).astype(np.uint8)
+        return result
 
     def _guided_filter(self, image):
         return cv2.ximgproc.guidedFilter(guide=image, src=image, radius=10, eps=4000)
@@ -226,6 +373,95 @@ class ImageFilterApp:
         background = cv2.bitwise_and(processed_background, processed_background, mask=1 - foreground_mask)
 
         return cv2.add(foreground, background)
+
+    # ---- Noise helpers and UI actions ----
+    def add_noise(self):
+        if self.original_image is None:
+            print("Load an image first before adding noise.")
+            return
+
+        choice = self.selected_noise.get()
+        sigma = float(self.gauss_sigma_var.get())
+        sp_amount = float(self.sp_amount_var.get())
+
+        img = self.original_image.copy()
+
+        if choice == "None":
+            self.noisy_image = None
+            print("No noise added.")
+            # clear noisy canvas
+            self.canvas_processed.delete("all")
+            tk.Label(self.canvas_processed, text="Processed Image", bg="#2c3e50", fg="white").place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+            self._calculate_and_display_metrics()
+            return
+
+        noisy = img.copy()
+        if choice in ("Gaussian", "Both"):
+            noisy = self._add_gaussian_noise(noisy, sigma=sigma)
+        if choice in ("Salt & Pepper", "Both"):
+            noisy = self._add_salt_pepper_noise(noisy, amount=sp_amount)
+
+        self.noisy_image = noisy
+        print(f"Added noise: {choice} (sigma={sigma}, sp_amount={sp_amount})")
+        self.display_image(self.noisy_image, self.canvas_processed)
+        self._calculate_and_display_metrics()
+
+    def _add_gaussian_noise(self, img, mean=0.0, sigma=25.0):
+        if img.dtype != np.uint8:
+            img = img.astype(np.uint8)
+        row, col, ch = img.shape
+        gauss = np.random.normal(mean, sigma, (row, col, ch)).reshape(row, col, ch)
+        noisy = img.astype(np.float32) + gauss
+        noisy = np.clip(noisy, 0, 255).astype(np.uint8)
+        return noisy
+
+    def _add_salt_pepper_noise(self, img, amount=0.02):
+        out = img.copy()
+        num_pixels = int(amount * img.shape[0] * img.shape[1])
+        coords = [np.random.randint(0, i - 1, num_pixels) for i in img.shape[:2]]
+        out[coords[0], coords[1]] = 255
+        coords = [np.random.randint(0, i - 1, num_pixels) for i in img.shape[:2]]
+        out[coords[0], coords[1]] = 0
+        return out
+
+    def save_noisy(self):
+        if getattr(self, 'noisy_image', None) is None:
+            print("No noisy image to save.")
+            return
+        # Ensure outputs directory exists
+        os.makedirs('outputs', exist_ok=True)
+        save_path = filedialog.asksaveasfilename(
+            initialdir='outputs',
+            initialfile='noisy.png',
+            defaultextension='.png', 
+            filetypes=[('PNG','*.png'),('JPEG','*.jpg;*.jpeg')]
+        )
+        if not save_path:
+            return
+        bgr = cv2.cvtColor(self.noisy_image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_path, bgr)
+        print(f"Saved noisy image to {save_path}")
+
+    def save_processed(self):
+        if getattr(self, 'processed_image', None) is None:
+            print("No processed image to save.")
+            return
+        # Ensure outputs directory exists
+        os.makedirs('outputs', exist_ok=True)
+        # Generate default filename based on selected filter
+        filter_name = self.selected_filter.get().lower().replace(' ', '_').replace('-', '')
+        default_name = f"{filter_name}.png"
+        save_path = filedialog.asksaveasfilename(
+            initialdir='outputs',
+            initialfile=default_name,
+            defaultextension='.png', 
+            filetypes=[('PNG','*.png'),('JPEG','*.jpg;*.jpeg')]
+        )
+        if not save_path:
+            return
+        bgr = cv2.cvtColor(self.processed_image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_path, bgr)
+        print(f"Saved processed image to {save_path}")
 
 # --- Main Execution ---
 if __name__ == "__main__":
