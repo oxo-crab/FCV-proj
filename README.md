@@ -1,50 +1,54 @@
-# 🎨 Image Filter Workbench - FCV Mini Project
+# Image Filter Workbench - FCV Mini Project# 🎨 Image Filter Workbench - FCV Mini Project
 
-A comprehensive GUI application for comparing image filtering and noise reduction techniques, featuring an advanced **entropy-based Kuwahara filter**.
 
----
 
-## 🚀 Quick Start
+GUI application for image filtering and noise reduction with entropy-based Kuwahara filter.A comprehensive GUI application for comparing image filtering and noise reduction techniques, featuring an advanced **entropy-based Kuwahara filter**.
 
-### Setup & Run (First Time)
-```powershell
-# 1. Clone the repository (if needed)
-git clone https://github.com/oxo-crab/FCV-proj.git
+
+
+------
+
+
+
+## Setup & Run## 🚀 Quick Start
+
+
+
+### First Time Setup### Setup & Run (First Time)
+
+```powershell```powershell
+
+# Activate virtual environment# 1. Clone the repository (if needed)
+
+.\.venv\Scripts\Activate.ps1git clone https://github.com/oxo-crab/FCV-proj.git
+
 cd FCV-proj
 
-# 2. Create virtual environment (if .venv doesn't exist)
+# Install dependencies
+
+pip install -r requirements.txt# 2. Create virtual environment (if .venv doesn't exist)
+
 python -m venv .venv
 
-# 3. Activate virtual environment
+# Run application
+
+python app.py# 3. Activate virtual environment
+
+```.\.venv\Scripts\Activate.ps1
+
+
+
+### After Setup# 4. Install dependencies
+
+```powershellpip install -r requirements.txt
+
 .\.venv\Scripts\Activate.ps1
 
-# 4. Install dependencies
-pip install -r requirements.txt
+python app.py# 5. Run the application
 
-# 5. Run the application
-python app.py
+```python app.py
+
 ```
-
-### Quick Run (After Setup)
-```powershell
-.\.venv\Scripts\Activate.ps1
-python app.py
-```
-
----
-
-## 📋 Features
-
-### Available Filters:
-1. **Guided Filter** - Fast edge-preserving smoothing
-2. **Rolling Guidance Filter** - Iterative edge-aware smoothing
-3. **Kuwahara Filter** - Classic variance-based filter
-4. **Kuwahara Filter (Entropy-based)** ⭐ **[Our Innovation]** - Advanced texture-preserving filter
-
-### Noise Addition:
-- **Gaussian Noise** (adjustable sigma: 0-100)
-- **Salt & Pepper Noise** (adjustable amount: 0-1)
-- **Combined** (both noise types)
 
 ### Real-time Metrics:
 - **PSNR** (Peak Signal-to-Noise Ratio) - Measures pixel accuracy
@@ -53,23 +57,6 @@ python app.py
 
 ---
 
-## 💡 How to Use
-
-### Basic Workflow:
-1. **Load Image** → Click "Load Image" and select test image (`images.jpeg` provided)
-2. **Add Noise** → Select noise type (try "Both") and click "Add Noise"
-3. **Apply Filter** → Choose filter from dropdown and click "Apply Filter"
-4. **Compare** → Check PSNR/SSIM metrics to see improvement
-5. **Save Results** → Click "Save Processed" (auto-saves to `outputs/` folder)
-6. **Try More** → Test different filters and compare results
-
-### Pro Tips:
-- 💡 **Higher PSNR** = Better quality (aim for > 30 dB)
-- 💡 **Higher SSIM** = Better similarity (max 1.0, aim for > 0.85)
-- 💡 **Entropy-based Kuwahara** typically achieves best results
-- 💡 All outputs auto-save to `outputs/` with smart naming
-
----
 
 ## 🎯 Key Innovation: Entropy-Based Kuwahara Filter
 
@@ -151,13 +138,6 @@ FCV-proj/
 pip install -r requirements.txt
 ```
 
-### System Requirements:
-- Windows/Linux/macOS
-- 4GB RAM minimum (8GB recommended)
-- Python 3.9 or higher
-
----
-
 
 
 ### Key Points :
@@ -178,14 +158,6 @@ A: Medical imaging (preserving diagnostic details), photography (artistic effect
 
 ---
 
-## 🚫 Important: Git & Version Control
-
-### DO NOT commit `.venv/` folder!
-The `.gitignore` file is already configured to exclude:
-- `.venv/` - Virtual environment (100MB+)
-- `__pycache__/` - Python cache
-- `outputs/` - Generated images (optional)
-- `archive/` - Old files
 
 ### Proper Git Workflow:
 ```powershell
@@ -214,31 +186,7 @@ python app.py
 
 ---
 
-## 📝 Development Notes
 
-### UI Improvements:
-- Clean header labels above each canvas
-- No text overlays on images
-- Real-time metrics display
-- Smart file naming for outputs
-- Auto-save to organized output folder
-
-### Code Organization:
-- Modular filter implementations
-- Separate entropy calculation method
-- Efficient vectorized operations
-- Error handling for edge cases
-
----
-
-## 🏆 Project Highlights
-
-✅ **4 Professional Filters** - Including state-of-the-art entropy-based approach  
-✅ **Real-time Metrics** - PSNR/SSIM for quantitative comparison  
-✅ **User-Friendly GUI** - Clean interface with clear visual feedback  
-✅ **Comprehensive Testing** - Noise addition and multiple filter comparisons  
-✅ **Well-Documented** - Code comments and this README  
-✅ **Version Controlled** - Proper Git workflow with .gitignore  
 
 ---
 
@@ -258,12 +206,7 @@ python app.py
 ---
 
 
-- **Original Research:**
-  - Kuwahara Filter: Kuwahara et al. (1976)
-  - Guided Filter: He et al. (2010)
-  - Rolling Guidance: Zhang et al. (2014)
 
----
 
 ## 🎉 Thank You!
 
