@@ -29,13 +29,19 @@ class ImageFilterApp:
         image_frame.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
 
         # --- Image Canvases ---
-        self.canvas_original = tk.Canvas(image_frame, bg="#2c3e50")
-        self.canvas_original.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=5)
-        tk.Label(self.canvas_original, text="Original Image", bg="#2c3e50", fg="white").place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        # Left frame for original image
+        left_frame = tk.Frame(image_frame)
+        left_frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=5)
+        tk.Label(left_frame, text="Original Image", bg="#34495e", fg="white", font=("Arial", 11, "bold"), pady=5).pack(side=tk.TOP, fill=tk.X)
+        self.canvas_original = tk.Canvas(left_frame, bg="#2c3e50", highlightthickness=0)
+        self.canvas_original.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
 
-        self.canvas_processed = tk.Canvas(image_frame, bg="#2c3e50")
-        self.canvas_processed.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH, padx=5)
-        tk.Label(self.canvas_processed, text="Processed Image", bg="#2c3e50", fg="white").place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        # Right frame for processed image
+        right_frame = tk.Frame(image_frame)
+        right_frame.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH, padx=5)
+        tk.Label(right_frame, text="Processed Image", bg="#34495e", fg="white", font=("Arial", 11, "bold"), pady=5).pack(side=tk.TOP, fill=tk.X)
+        self.canvas_processed = tk.Canvas(right_frame, bg="#2c3e50", highlightthickness=0)
+        self.canvas_processed.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
 
         # --- Controls ---
         btn_load = tk.Button(control_frame, text="Load Image", command=self.load_image)
@@ -45,9 +51,7 @@ class ImageFilterApp:
             "Guided Filter",
             "Rolling Guidance Filter",
             "Kuwahara Filter",
-            "Kuwahara Filter (Entropy-based)",
-            "Portrait - Standard Blur",
-            "Portrait - Artistic Style"
+            "Kuwahara Filter (Entropy-based)"
         ]
         self.selected_filter = tk.StringVar(value=self.filter_options[0])
         filter_menu = ttk.Combobox(control_frame, textvariable=self.selected_filter, values=self.filter_options, state="readonly", width=25)
@@ -108,9 +112,8 @@ class ImageFilterApp:
             
         print(f"\nFilter selection changed to '{self.selected_filter.get()}'. Clearing view.")
         
-        # Black out the canvas
+        # Clear the canvas (no text overlay)
         self.canvas_processed.delete("all")
-        tk.Label(self.canvas_processed, text="Click 'Apply Filter' to see result", bg="#2c3e50", fg="white", font=("Arial", 12)).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         
         # Reset the metrics and the stored processed image
         self.processed_image = None
@@ -134,7 +137,6 @@ class ImageFilterApp:
 
         self.root.after(100, lambda: self.display_image(self.original_image, self.canvas_original))
         self.canvas_processed.delete("all")
-        tk.Label(self.canvas_processed, text="Processed Image", bg="#2c3e50", fg="white").place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         self._calculate_and_display_metrics() # Reset metrics on new image load
 
     def display_image(self, image_data, canvas):
@@ -178,10 +180,6 @@ class ImageFilterApp:
             self.processed_image = self._kuwahara_filter_vectorized(source)
         elif choice == "Kuwahara Filter (Entropy-based)":
             self.processed_image = self._kuwahara_entropy_filter(source)
-        elif choice == "Portrait - Standard Blur":
-            self.processed_image = self._create_portrait_effect(source, lambda img: cv2.GaussianBlur(img, (21, 21), 0))
-        elif choice == "Portrait - Artistic Style":
-            self.processed_image = self._create_portrait_effect(source, self._kuwahara_filter_vectorized)
 
         if self.processed_image is not None:
             print(f"'{choice}' filter applied successfully. Displaying result.")
@@ -391,7 +389,6 @@ class ImageFilterApp:
             print("No noise added.")
             # clear noisy canvas
             self.canvas_processed.delete("all")
-            tk.Label(self.canvas_processed, text="Processed Image", bg="#2c3e50", fg="white").place(relx=0.5, rely=0.5, anchor=tk.CENTER)
             self._calculate_and_display_metrics()
             return
 
